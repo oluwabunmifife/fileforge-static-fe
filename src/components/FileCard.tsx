@@ -1,12 +1,8 @@
-export type ProcessedFile = {
-  id: string;
-  filename: string;
-  size: number;
-  downloadUrl: string;
-};
+import type { ProcessedFile } from "@/hooks/usePolling";
 
 type FileCardProps = {
   file: ProcessedFile;
+  onRemove?: (fileId: string) => void;
 };
 
 function formatBytes(bytes: number) {
@@ -21,7 +17,7 @@ function formatBytes(bytes: number) {
   return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
-export default function FileCard({ file }: FileCardProps) {
+export default function FileCard({ file, onRemove }: FileCardProps) {
   return (
     <article className="group relative overflow-hidden rounded-3xl border border-white/70 bg-white/85 p-5 shadow-glow backdrop-blur-xl">
       <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-accent/35 to-transparent" />
@@ -32,15 +28,27 @@ export default function FileCard({ file }: FileCardProps) {
             {formatBytes(file.size)}
           </p>
         </div>
-        <a
-          className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-soft hover:-translate-y-0.5 hover:bg-slate-800"
-          href={file.downloadUrl}
-          download
-          rel="noreferrer"
-          target="_blank"
-        >
-          Download
-        </a>
+        <div className="flex items-center gap-2 sm:items-stretch">
+          <a
+            className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-950 px-4 py-3 text-sm font-semibold text-white shadow-soft hover:-translate-y-0.5 hover:bg-slate-800"
+            href={file.downloadUrl}
+            download
+            rel="noreferrer"
+            target="_blank"
+          >
+            Download
+          </a>
+          {onRemove && (
+            <button
+              onClick={() => onRemove(file.id)}
+              className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white/80 px-3 py-3 text-sm font-semibold text-slate-600 shadow-soft hover:bg-slate-100"
+              aria-label="Remove"
+              type="button"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
     </article>
   );

@@ -1,4 +1,4 @@
-import type { UploadItem } from "@/hooks/useFileUpload";
+import type { UploadItem } from "@/hooks/useUpload";
 
 type ProcessingStatusProps = {
   uploads: UploadItem[];

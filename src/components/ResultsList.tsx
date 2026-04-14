@@ -1,11 +1,13 @@
-import FileCard, { type ProcessedFile } from "@/components/FileCard";
+import FileCard from "@/components/FileCard";
+import type { ProcessedFile } from "@/hooks/usePolling";
 
 type ResultsListProps = {
   files: ProcessedFile[];
   isPolling: boolean;
+  onRemove?: (fileId: string) => void;
 };
 
-export default function ResultsList({ files, isPolling }: ResultsListProps) {
+export default function ResultsList({ files, isPolling, onRemove }: ResultsListProps) {
   if (!files.length) {
     return null;
   }
@@ -26,7 +28,7 @@ export default function ResultsList({ files, isPolling }: ResultsListProps) {
       </div>
       <div className="grid gap-3">
         {files.map((file) => (
-          <FileCard key={file.id} file={file} />
+          <FileCard key={file.id} file={file} onRemove={onRemove} />
         ))}
       </div>
     </section>
