@@ -29,15 +29,18 @@ async function getPresignedUploadUrl(
   contentType: string,
   sessionId: string
 ): Promise<{ uploadUrl: string; key: string }> {
-  const response = await fetch(`${apiBaseUrl}/upload-url`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      filename,
-      contentType: contentType || "application/octet-stream",
-      sessionId
-    })
-  });
+  const url = `${API_BASE_URL}/upload-url`;
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename,
+        contentType: contentType || "application/octet-stream",
+        sessionId
+      })
+    });
 
     if (!response.ok) {
       const error = await response.text();

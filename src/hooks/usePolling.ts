@@ -75,7 +75,7 @@ export function usePolling(sessionId: string | null) {
 
     try {
       const response = await fetch(
-        `${apiBaseUrl}/results?sessionId=${encodeURIComponent(sessionId)}`,
+        `${API_BASE_URL}/results?sessionId=${encodeURIComponent(sessionId)}`,
         {
           cache: "no-store"
         }
