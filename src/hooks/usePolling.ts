@@ -76,13 +76,19 @@ export function usePolling(sessionId: string | null) {
 
     try {
       const response = await fetch(
-        `${apiBaseUrl}/api/results?sessionId=${encodeURIComponent(sessionId)}`,
+        `${apiBaseUrl}/results?sessionId=${encodeURIComponent(sessionId)}`,
         {
           cache: "no-store"
         }
       );
 
       if (!response.ok) {
+        // 404 is expected if no results exist yet, don't error
+        if (response.status === 404) {
+          setError(null);
+          return;
+        }
+
         throw new Error(
           `Results API returned ${response.status}. Check your backend is running.`
         );

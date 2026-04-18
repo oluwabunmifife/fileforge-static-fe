@@ -30,30 +30,41 @@ async function getPresignedUploadUrl(
   contentType: string,
   sessionId: string
 ): Promise<{ uploadUrl: string; key: string }> {
-  const response = await fetch(`${apiBaseUrl}/api/upload-url`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      filename,
-      contentType: contentType || "application/octet-stream",
-      sessionId
-    })
-  });
+  const url = `${apiBaseUrl}/upload-url`;
+  
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename,
+        contentType: contentType || "application/octet-stream",
+        sessionId
+      })
+    });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to get upload URL: ${error || response.statusText}`);
+    if (!response.ok) {
+      const error = await response.text();
+      console.error(`Backend error (${response.status}):`, error);
+      throw new Error(`Backend returned ${response.status}: ${error || response.statusText}`);
+    }
+
+    const data = (await response.json()) as UploadUrlResponse;
+    const uploadUrl = data.uploadUrl ?? data.presignedUrl ?? data.url;
+    const key = data.key ?? filename;
+
+    if (!uploadUrl) {
+      throw new Error("Invalid presigned URL response from backend");
+    }
+
+    return { uploadUrl, key };
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("Backend returned")) {
+      throw err;
+    }
+    console.error(`Fetch error calling ${url}:`, err);
+    throw new Error(`Failed to reach backend: ${err instanceof Error ? err.message : "Network error"}`);
   }
-
-  const data = (await response.json()) as UploadUrlResponse;
-  const uploadUrl = data.uploadUrl ?? data.presignedUrl ?? data.url;
-  const key = data.key ?? filename;
-
-  if (!uploadUrl) {
-    throw new Error("Invalid presigned URL response from backend");
-  }
-
-  return { uploadUrl, key };
 }
 
 /**
@@ -93,7 +104,7 @@ function uploadFileToS3(
 }
 
 export function useUpload() {
-  const { apiBaseUrl } = useConfig();
+  const { apiBaseUrl, isLoading } = useConfig();
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,6 +120,11 @@ export function useUpload() {
         return;
       }
 
+      if (isLoading) {
+        setError("Initializing configuration... please wait");
+        return;
+      }
+
       if (!apiBaseUrl) {
         setError("API base URL not configured. Set VITE_API_BASE_URL environment variable.");
         return;
@@ -118,13 +134,18 @@ export function useUpload() {
       const uploadPromises = files.map((file) => uploadSingleFile(file, sessionId));
       await Promise.allSettled(uploadPromises);
     },
-    [apiBaseUrl]
+    [apiBaseUrl, isLoading]
   );
 
   const uploadSingleFile = useCallback(
     async (file: File, sessionId: string) => {
       if (!apiBaseUrl) {
         setError("API base URL not configured");
+        return;
+      }
+
+      if (isLoading) {
+        setError("Configuration is still loading");
         return;
       }
 
@@ -182,7 +203,7 @@ export function useUpload() {
         setError(message);
       }
     },
-    [apiBaseUrl]
+    [apiBaseUrl, isLoading]
   );
 
   const clearError = useCallback(() => setError(null), []);

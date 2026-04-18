@@ -8,7 +8,7 @@ import { usePolling } from "@/hooks/usePolling";
 import { useConfig } from "@/providers/ConfigProvider";
 
 export default function App() {
-  const { apiBaseUrl } = useConfig();
+  const { apiBaseUrl, isLoading: isConfigLoading } = useConfig();
   const sessionId = useSessionId();
   const { uploads, error: uploadError, uploadFiles, clearError: clearUploadError } = useUpload();
   const { results, isPolling, error: pollingError, clearError: clearPollingError, clearResult } = usePolling(sessionId);
@@ -76,6 +76,12 @@ export default function App() {
           </div>
 
           <div className="mx-auto mt-8 max-w-4xl space-y-5">
+            {isConfigLoading ? (
+              <div className="rounded-[28px] border border-white/60 bg-white/70 p-4 text-sm text-slate-500 shadow-glow backdrop-blur-xl">
+                Loading configuration...
+              </div>
+            ) : null}
+
             {!apiBaseUrl ? (
               <div className="rounded-[28px] border border-amber-100 bg-amber-50/85 p-4 text-sm text-amber-800 shadow-sm">
                 Set <span className="font-mono">VITE_API_BASE_URL</span> to your backend URL.
@@ -83,7 +89,7 @@ export default function App() {
               </div>
             ) : null}
 
-            <UploadDropzone onDrop={handleFiles} isBusy={activeUploads.length > 0} />
+            <UploadDropzone onDrop={handleFiles} isBusy={activeUploads.length > 0 || isConfigLoading} />
 
             {!sessionId ? (
               <div className="rounded-[28px] border border-white/60 bg-white/70 p-4 text-sm text-slate-500 shadow-glow backdrop-blur-xl">
