@@ -7,7 +7,7 @@ export type UploadItem = {
   filename: string;
   size: number;
   progress: number;
-  status: "uploading" | "processing" | "error";
+  status: "uploading" | "processing" | "completed" | "error";
   error?: string;
 };
 
@@ -207,12 +207,23 @@ export function useUpload() {
     setUploads((current) => current.filter((u) => u.id !== uploadId));
   }, []);
 
+  const markUploadCompleted = useCallback((filename: string) => {
+    setUploads((current) =>
+      current.map((upload) =>
+        upload.filename === filename
+          ? { ...upload, status: "completed" }
+          : upload
+      )
+    );
+  }, []);
+
   return {
     uploads,
     error,
     uploadFiles,
     clearError,
     retryFailedUpload,
-    clearUpload
+    clearUpload,
+    markUploadCompleted
   };
 }

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import ProcessingStatus from "@/components/ProcessingStatus";
 import ResultsList from "@/components/ResultsList";
 import UploadDropzone from "@/components/UploadDropzone";
@@ -10,7 +10,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, ""
 
 export default function App() {
   const sessionId = useSessionId();
-  const { uploads, error: uploadError, uploadFiles, clearError: clearUploadError } = useUpload();
+  const { uploads, error: uploadError, uploadFiles, clearError: clearUploadError, markUploadCompleted } = useUpload();
   const { 
     results, 
     status: pollingStatus, 
@@ -19,6 +19,13 @@ export default function App() {
     clearResult,
     resetPolling
   } = usePolling(sessionId);
+
+  // Mark uploads as completed when they appear in results
+  useEffect(() => {
+    results.forEach((result) => {
+      markUploadCompleted(result.filename);
+    });
+  }, [results, markUploadCompleted]);
 
   // Combine errors from both upload and polling
   const error = uploadError || pollingError;
@@ -39,7 +46,7 @@ export default function App() {
     [uploadFiles, sessionId]
   );
 
-  // Get only active uploads (uploading or processing)
+  // Get only active uploads (uploading or processing - exclude completed)
   const activeUploads = useMemo(
     () => uploads.filter((u) => u.status === "uploading" || u.status === "processing"),
     [uploads]
