@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
-import { useConfig } from "@/providers/ConfigProvider";
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 export type UploadItem = {
   id: string;
@@ -19,13 +20,11 @@ type UploadUrlResponse = {
 
 /**
  * Retrieves presigned upload URL from backend
- * @param apiBaseUrl - API base URL
  * @param filename - File name
  * @param contentType - MIME type
  * @param sessionId - Session ID for tracking
  */
 async function getPresignedUploadUrl(
-  apiBaseUrl: string,
   filename: string,
   contentType: string,
   sessionId: string
@@ -40,20 +39,28 @@ async function getPresignedUploadUrl(
     })
   });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Failed to get upload URL: ${error || response.statusText}`);
+    if (!response.ok) {
+      const error = await response.text();
+      console.error(`Backend error (${response.status}):`, error);
+      throw new Error(`Backend returned ${response.status}: ${error || response.statusText}`);
+    }
+
+    const data = (await response.json()) as UploadUrlResponse;
+    const uploadUrl = data.uploadUrl ?? data.presignedUrl ?? data.url;
+    const key = data.key ?? filename;
+
+    if (!uploadUrl) {
+      throw new Error("Invalid presigned URL response from backend");
+    }
+
+    return { uploadUrl, key };
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("Backend returned")) {
+      throw err;
+    }
+    console.error(`Fetch error calling ${url}:`, err);
+    throw new Error(`Failed to reach backend: ${err instanceof Error ? err.message : "Network error"}`);
   }
-
-  const data = (await response.json()) as UploadUrlResponse;
-  const uploadUrl = data.uploadUrl ?? data.presignedUrl ?? data.url;
-  const key = data.key ?? filename;
-
-  if (!uploadUrl) {
-    throw new Error("Invalid presigned URL response from backend");
-  }
-
-  return { uploadUrl, key };
 }
 
 /**
@@ -93,7 +100,6 @@ function uploadFileToS3(
 }
 
 export function useUpload() {
-  const { apiBaseUrl } = useConfig();
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,7 +115,7 @@ export function useUpload() {
         return;
       }
 
-      if (!apiBaseUrl) {
+      if (!API_BASE_URL) {
         setError("API base URL not configured. Set VITE_API_BASE_URL environment variable.");
         return;
       }
@@ -118,12 +124,12 @@ export function useUpload() {
       const uploadPromises = files.map((file) => uploadSingleFile(file, sessionId));
       await Promise.allSettled(uploadPromises);
     },
-    [apiBaseUrl]
+    []
   );
 
   const uploadSingleFile = useCallback(
     async (file: File, sessionId: string) => {
-      if (!apiBaseUrl) {
+      if (!API_BASE_URL) {
         setError("API base URL not configured");
         return;
       }
@@ -145,7 +151,6 @@ export function useUpload() {
       try {
         // Step 1: Get presigned URL
         const { uploadUrl, key } = await getPresignedUploadUrl(
-          apiBaseUrl,
           file.name,
           file.type || "application/octet-stream",
           sessionId
@@ -181,9 +186,7 @@ export function useUpload() {
 
         setError(message);
       }
-    },
-    [apiBaseUrl]
-  );
+    }, []);
 
   const clearError = useCallback(() => setError(null), []);
 

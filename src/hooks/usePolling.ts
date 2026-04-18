@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useConfig } from "@/providers/ConfigProvider";
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const POLL_INTERVAL_MS = 3000;
 const MAX_RETRY_ATTEMPTS = 5;
 
@@ -51,7 +51,6 @@ function normalizeResults(payload: unknown): ProcessedFile[] {
  * Handles retry logic and error states
  */
 export function usePolling(sessionId: string | null) {
-  const { apiBaseUrl } = useConfig();
   const [results, setResults] = useState<ProcessedFile[]>([]);
   const [isPolling, setIsPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +66,7 @@ export function usePolling(sessionId: string | null) {
       return;
     }
 
-    if (!apiBaseUrl) {
+    if (!API_BASE_URL) {
       return;
     }
 
@@ -83,6 +82,12 @@ export function usePolling(sessionId: string | null) {
       );
 
       if (!response.ok) {
+        // 404 is expected if no results exist yet, don't error
+        if (response.status === 404) {
+          setError(null);
+          return;
+        }
+
         throw new Error(
           `Results API returned ${response.status}. Check your backend is running.`
         );
@@ -107,7 +112,7 @@ export function usePolling(sessionId: string | null) {
       setIsPolling(false);
       pollInFlightRef.current = false;
     }
-  }, [sessionId, apiBaseUrl]);
+  }, [sessionId]);
 
   /**
    * Set up polling interval
