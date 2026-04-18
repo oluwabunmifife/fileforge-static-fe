@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
-import { useConfig } from "@/providers/ConfigProvider";
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 export type UploadItem = {
   id: string;
@@ -19,18 +20,16 @@ type UploadUrlResponse = {
 
 /**
  * Retrieves presigned upload URL from backend
- * @param apiBaseUrl - API base URL
  * @param filename - File name
  * @param contentType - MIME type
  * @param sessionId - Session ID for tracking
  */
 async function getPresignedUploadUrl(
-  apiBaseUrl: string,
   filename: string,
   contentType: string,
   sessionId: string
 ): Promise<{ uploadUrl: string; key: string }> {
-  const url = `${apiBaseUrl}/upload-url`;
+  const url = `${API_BASE_URL}/upload-url`;
   
   try {
     const response = await fetch(url, {
@@ -104,7 +103,6 @@ function uploadFileToS3(
 }
 
 export function useUpload() {
-  const { apiBaseUrl, isLoading } = useConfig();
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,12 +118,7 @@ export function useUpload() {
         return;
       }
 
-      if (isLoading) {
-        setError("Initializing configuration... please wait");
-        return;
-      }
-
-      if (!apiBaseUrl) {
+      if (!API_BASE_URL) {
         setError("API base URL not configured. Set VITE_API_BASE_URL environment variable.");
         return;
       }
@@ -134,18 +127,13 @@ export function useUpload() {
       const uploadPromises = files.map((file) => uploadSingleFile(file, sessionId));
       await Promise.allSettled(uploadPromises);
     },
-    [apiBaseUrl, isLoading]
+    []
   );
 
   const uploadSingleFile = useCallback(
     async (file: File, sessionId: string) => {
-      if (!apiBaseUrl) {
+      if (!API_BASE_URL) {
         setError("API base URL not configured");
-        return;
-      }
-
-      if (isLoading) {
-        setError("Configuration is still loading");
         return;
       }
 
@@ -166,7 +154,6 @@ export function useUpload() {
       try {
         // Step 1: Get presigned URL
         const { uploadUrl, key } = await getPresignedUploadUrl(
-          apiBaseUrl,
           file.name,
           file.type || "application/octet-stream",
           sessionId
@@ -202,9 +189,7 @@ export function useUpload() {
 
         setError(message);
       }
-    },
-    [apiBaseUrl, isLoading]
-  );
+    }, []);
 
   const clearError = useCallback(() => setError(null), []);
 

@@ -2,7 +2,8 @@ import { useCallback, useMemo } from "react";
 import { useSessionId } from "@/hooks/useSessionId";
 import { useUpload, type UploadItem } from "@/hooks/useUpload";
 import { usePolling, type ProcessedFile } from "@/hooks/usePolling";
-import { useConfig } from "@/providers/ConfigProvider";
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 /**
  * @deprecated Use individual hooks instead:
@@ -13,7 +14,6 @@ import { useConfig } from "@/providers/ConfigProvider";
  * This hook is maintained for backward compatibility.
  */
 export function useFileUpload() {
-  const { apiBaseUrl: API_BASE_URL } = useConfig();
   const sessionId = useSessionId();
   const { uploads: uploadItems, error: uploadError, uploadFiles, clearError: clearUploadError } = useUpload();
   const { results, isPolling, error: pollingError, clearError: clearPollingError, refetch: refreshResults } = usePolling(sessionId);

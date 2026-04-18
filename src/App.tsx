@@ -5,10 +5,10 @@ import UploadDropzone from "@/components/UploadDropzone";
 import { useSessionId } from "@/hooks/useSessionId";
 import { useUpload } from "@/hooks/useUpload";
 import { usePolling } from "@/hooks/usePolling";
-import { useConfig } from "@/providers/ConfigProvider";
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 export default function App() {
-  const { apiBaseUrl, isLoading: isConfigLoading } = useConfig();
   const sessionId = useSessionId();
   const { uploads, error: uploadError, uploadFiles, clearError: clearUploadError } = useUpload();
   const { results, isPolling, error: pollingError, clearError: clearPollingError, clearResult } = usePolling(sessionId);
@@ -76,20 +76,14 @@ export default function App() {
           </div>
 
           <div className="mx-auto mt-8 max-w-4xl space-y-5">
-            {isConfigLoading ? (
-              <div className="rounded-[28px] border border-white/60 bg-white/70 p-4 text-sm text-slate-500 shadow-glow backdrop-blur-xl">
-                Loading configuration...
-              </div>
-            ) : null}
-
-            {!apiBaseUrl ? (
+            {!API_BASE_URL ? (
               <div className="rounded-[28px] border border-amber-100 bg-amber-50/85 p-4 text-sm text-amber-800 shadow-sm">
                 Set <span className="font-mono">VITE_API_BASE_URL</span> to your backend URL.
                 Example: <span className="font-mono">https://abc123.execute-api.us-east-1.amazonaws.com</span>
               </div>
             ) : null}
 
-            <UploadDropzone onDrop={handleFiles} isBusy={activeUploads.length > 0 || isConfigLoading} />
+            <UploadDropzone onDrop={handleFiles} isBusy={activeUploads.length > 0} />
 
             {!sessionId ? (
               <div className="rounded-[28px] border border-white/60 bg-white/70 p-4 text-sm text-slate-500 shadow-glow backdrop-blur-xl">
