@@ -11,11 +11,23 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, ""
 export default function App() {
   const sessionId = useSessionId();
   const { uploads, error: uploadError, uploadFiles, clearError: clearUploadError } = useUpload();
-  const { results, isPolling, error: pollingError, clearError: clearPollingError, clearResult } = usePolling(sessionId);
+  const { 
+    results, 
+    status: pollingStatus, 
+    error: pollingError, 
+    clearError: clearPollingError, 
+    clearResult,
+    resetPolling
+  } = usePolling(sessionId);
 
   // Combine errors from both upload and polling
   const error = uploadError || pollingError;
   const clearError = uploadError ? clearUploadError : clearPollingError;
+
+  // Show timeout message if polling timed out
+  const timeoutMessage = pollingStatus === "timeout" 
+    ? "Processing timeout: please refresh and try again."
+    : null;
 
   const handleFiles = useCallback(
     async (acceptedFiles: File[]) => {
@@ -91,9 +103,9 @@ export default function App() {
               </div>
             ) : null}
 
-            {error ? (
+            {error || timeoutMessage ? (
               <div className="flex flex-col gap-3 rounded-[28px] border border-rose-100 bg-rose-50/80 p-4 text-sm text-rose-700 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-                <span>{error}</span>
+                <span>{error || timeoutMessage}</span>
                 <button
                   className="inline-flex items-center justify-center rounded-2xl border border-rose-200 bg-white px-4 py-2 font-semibold text-rose-700 hover:bg-rose-100"
                   onClick={clearError}
@@ -126,7 +138,7 @@ export default function App() {
             ) : null}
 
             <ProcessingStatus uploads={activeUploads} />
-            <ResultsList files={results} isPolling={isPolling} onRemove={clearResult} />
+            <ResultsList files={results} isPolling={pollingStatus === "processing"} onRemove={clearResult} />
 
             {!activeUploads.length && !results.length ? (
               <div className="rounded-[28px] border border-white/60 bg-white/65 p-5 text-sm text-slate-500 shadow-glow backdrop-blur-xl">

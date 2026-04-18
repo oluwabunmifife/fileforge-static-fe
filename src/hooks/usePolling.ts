@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const POLL_INTERVAL_MS = 3000;
+const MAX_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_RETRY_ATTEMPTS = 5;
 
 export type ProcessedFile = {
@@ -10,6 +11,8 @@ export type ProcessedFile = {
   size: number;
   downloadUrl: string;
 };
+
+export type PollingStatus = "idle" | "uploading" | "processing" | "completed" | "error" | "timeout";
 
 type RawResult = {
   id?: string;
@@ -48,15 +51,27 @@ function normalizeResults(payload: unknown): ProcessedFile[] {
 
 /**
  * Polls backend for processed files every 3 seconds
- * Handles retry logic and error states
+ * Stops immediately when results found or max timeout reached
  */
 export function usePolling(sessionId: string | null) {
   const [results, setResults] = useState<ProcessedFile[]>([]);
-  const [isPolling, setIsPolling] = useState(false);
+  const [status, setStatus] = useState<PollingStatus>("idle");
   const [error, setError] = useState<string | null>(null);
 
   const pollInFlightRef = useRef(false);
   const retryCountRef = useRef(0);
+  const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+
+  /**
+   * Stops the polling interval and cleans up
+   */
+  const stopPolling = useCallback(() => {
+    if (intervalIdRef.current) {
+      clearInterval(intervalIdRef.current);
+      intervalIdRef.current = null;
+    }
+  }, []);
 
   /**
    * Fetches results for current session
@@ -70,15 +85,20 @@ export function usePolling(sessionId: string | null) {
       return;
     }
 
+    // Check if polling timeout exceeded
+    if (startTimeRef.current && Date.now() - startTimeRef.current > MAX_TIMEOUT_MS) {
+      setStatus("timeout");
+      setError("Polling timeout: processing took too long");
+      stopPolling();
+      return;
+    }
+
     pollInFlightRef.current = true;
-    setIsPolling(true);
 
     try {
       const response = await fetch(
         `${API_BASE_URL}/results?sessionId=${encodeURIComponent(sessionId)}`,
-        {
-          cache: "no-store"
-        }
+        { cache: "no-store" }
       );
 
       if (!response.ok) {
@@ -96,7 +116,17 @@ export function usePolling(sessionId: string | null) {
       const payload = (await response.json()) as unknown;
       const normalized = normalizeResults(payload);
 
-      setResults(normalized);
+      // Results found - stop polling immediately
+      if (normalized.length > 0) {
+        setResults(normalized);
+        setError(null);
+        setStatus("completed");
+        stopPolling();
+        retryCountRef.current = 0;
+        return;
+      }
+
+      // No results yet, keep polling
       setError(null);
       retryCountRef.current = 0;
     } catch (err) {
@@ -106,34 +136,59 @@ export function usePolling(sessionId: string | null) {
 
       // Only show error after multiple retries to avoid noise
       if (retryCountRef.current >= MAX_RETRY_ATTEMPTS) {
+        setStatus("error");
         setError(message);
+        stopPolling();
       }
     } finally {
-      setIsPolling(false);
       pollInFlightRef.current = false;
     }
-  }, [sessionId]);
+  }, [sessionId, stopPolling]);
 
   /**
-   * Set up polling interval
+   * Set up polling interval when session is available
+   * Stop polling when results found, timeout, or error occurs
    */
   useEffect(() => {
+    // Clear existing interval to avoid duplicates
+    if (intervalIdRef.current) {
+      clearInterval(intervalIdRef.current);
+      intervalIdRef.current = null;
+    }
+
+    // Reset when no session
     if (!sessionId) {
+      setStatus("idle");
+      setResults([]);
+      setError(null);
+      startTimeRef.current = null;
+      retryCountRef.current = 0;
       return;
     }
+
+    // Don't start new polling if already in terminal state
+    if (status === "completed" || status === "error" || status === "timeout") {
+      return;
+    }
+
+    // Start polling
+    setStatus("processing");
+    startTimeRef.current = Date.now();
+    retryCountRef.current = 0;
 
     // Initial fetch
     void fetchResults();
 
     // Poll every 3 seconds
-    const intervalId = window.setInterval(() => {
+    intervalIdRef.current = setInterval(() => {
       void fetchResults();
     }, POLL_INTERVAL_MS);
 
+    // Cleanup on unmount or when dependencies change
     return () => {
-      window.clearInterval(intervalId);
+      stopPolling();
     };
-  }, [sessionId, fetchResults]);
+  }, [sessionId, status, fetchResults, stopPolling]);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -141,12 +196,23 @@ export function usePolling(sessionId: string | null) {
     setResults((current) => current.filter((f) => f.id !== fileId));
   }, []);
 
+  const resetPolling = useCallback(() => {
+    stopPolling();
+    setStatus("idle");
+    setResults([]);
+    setError(null);
+    startTimeRef.current = null;
+    retryCountRef.current = 0;
+  }, [stopPolling]);
+
   return {
     results,
-    isPolling,
+    status,
+    isPolling: status === "processing",
     error,
     clearError,
     clearResult,
+    resetPolling,
     refetch: fetchResults
   };
 }
