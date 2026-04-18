@@ -30,7 +30,7 @@ async function getPresignedUploadUrl(
   contentType: string,
   sessionId: string
 ): Promise<{ uploadUrl: string; key: string }> {
-  const response = await fetch(`${apiBaseUrl}/api/upload-url`, {
+  const response = await fetch(`${apiBaseUrl}/upload-url`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
