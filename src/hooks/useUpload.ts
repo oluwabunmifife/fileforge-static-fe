@@ -1,6 +1,5 @@
 import { useCallback, useState } from "react";
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+import { useConfig } from "@/providers/ConfigProvider";
 
 export type UploadItem = {
   id: string;
@@ -20,16 +19,18 @@ type UploadUrlResponse = {
 
 /**
  * Retrieves presigned upload URL from backend
+ * @param apiBaseUrl - API base URL
  * @param filename - File name
  * @param contentType - MIME type
  * @param sessionId - Session ID for tracking
  */
 async function getPresignedUploadUrl(
+  apiBaseUrl: string,
   filename: string,
   contentType: string,
   sessionId: string
 ): Promise<{ uploadUrl: string; key: string }> {
-  const response = await fetch(`${API_BASE_URL}/api/upload-url`, {
+  const response = await fetch(`${apiBaseUrl}/api/upload-url`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -92,6 +93,7 @@ function uploadFileToS3(
 }
 
 export function useUpload() {
+  const { apiBaseUrl } = useConfig();
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,7 +109,7 @@ export function useUpload() {
         return;
       }
 
-      if (!API_BASE_URL) {
+      if (!apiBaseUrl) {
         setError("API base URL not configured. Set VITE_API_BASE_URL environment variable.");
         return;
       }
@@ -116,63 +118,72 @@ export function useUpload() {
       const uploadPromises = files.map((file) => uploadSingleFile(file, sessionId));
       await Promise.allSettled(uploadPromises);
     },
-    []
+    [apiBaseUrl]
   );
 
-  const uploadSingleFile = useCallback(async (file: File, sessionId: string) => {
-    const uploadId = crypto.randomUUID();
+  const uploadSingleFile = useCallback(
+    async (file: File, sessionId: string) => {
+      if (!apiBaseUrl) {
+        setError("API base URL not configured");
+        return;
+      }
 
-    // Add to uploads list
-    setUploads((current) => [
-      {
-        id: uploadId,
-        filename: file.name,
-        size: file.size,
-        progress: 0,
-        status: "uploading"
-      },
-      ...current
-    ]);
+      const uploadId = crypto.randomUUID();
 
-    try {
-      // Step 1: Get presigned URL
-      const { uploadUrl, key } = await getPresignedUploadUrl(
-        file.name,
-        file.type || "application/octet-stream",
-        sessionId
-      );
+      // Add to uploads list
+      setUploads((current) => [
+        {
+          id: uploadId,
+          filename: file.name,
+          size: file.size,
+          progress: 0,
+          status: "uploading"
+        },
+        ...current
+      ]);
 
-      // Step 2: Upload to S3
-      await uploadFileToS3(file, uploadUrl, (progress) => {
+      try {
+        // Step 1: Get presigned URL
+        const { uploadUrl, key } = await getPresignedUploadUrl(
+          apiBaseUrl,
+          file.name,
+          file.type || "application/octet-stream",
+          sessionId
+        );
+
+        // Step 2: Upload to S3
+        await uploadFileToS3(file, uploadUrl, (progress) => {
+          setUploads((current) =>
+            current.map((upload) =>
+              upload.id === uploadId ? { ...upload, progress } : upload
+            )
+          );
+        });
+
+        // Step 3: Mark as processing (waiting for Lambda to process)
         setUploads((current) =>
           current.map((upload) =>
-            upload.id === uploadId ? { ...upload, progress } : upload
+            upload.id === uploadId
+              ? { ...upload, progress: 100, status: "processing" }
+              : upload
           )
         );
-      });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Upload failed";
 
-      // Step 3: Mark as processing (waiting for Lambda to process)
-      setUploads((current) =>
-        current.map((upload) =>
-          upload.id === uploadId
-            ? { ...upload, progress: 100, status: "processing" }
-            : upload
-        )
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Upload failed";
+        setUploads((current) =>
+          current.map((upload) =>
+            upload.id === uploadId
+              ? { ...upload, status: "error", error: message }
+              : upload
+          )
+        );
 
-      setUploads((current) =>
-        current.map((upload) =>
-          upload.id === uploadId
-            ? { ...upload, status: "error", error: message }
-            : upload
-        )
-      );
-
-      setError(message);
-    }
-  }, []);
+        setError(message);
+      }
+    },
+    [apiBaseUrl]
+  );
 
   const clearError = useCallback(() => setError(null), []);
 

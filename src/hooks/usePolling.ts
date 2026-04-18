@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useConfig } from "@/providers/ConfigProvider";
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const POLL_INTERVAL_MS = 3000;
 const MAX_RETRY_ATTEMPTS = 5;
 
@@ -51,6 +51,7 @@ function normalizeResults(payload: unknown): ProcessedFile[] {
  * Handles retry logic and error states
  */
 export function usePolling(sessionId: string | null) {
+  const { apiBaseUrl } = useConfig();
   const [results, setResults] = useState<ProcessedFile[]>([]);
   const [isPolling, setIsPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +67,7 @@ export function usePolling(sessionId: string | null) {
       return;
     }
 
-    if (!API_BASE_URL) {
+    if (!apiBaseUrl) {
       return;
     }
 
@@ -75,7 +76,7 @@ export function usePolling(sessionId: string | null) {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/results?sessionId=${encodeURIComponent(sessionId)}`,
+        `${apiBaseUrl}/api/results?sessionId=${encodeURIComponent(sessionId)}`,
         {
           cache: "no-store"
         }
@@ -106,7 +107,7 @@ export function usePolling(sessionId: string | null) {
       setIsPolling(false);
       pollInFlightRef.current = false;
     }
-  }, [sessionId]);
+  }, [sessionId, apiBaseUrl]);
 
   /**
    * Set up polling interval

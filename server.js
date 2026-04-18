@@ -8,6 +8,13 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Serve configuration endpoint
+app.get('/api/config', (req, res) => {
+  res.json({
+    apiBaseUrl: (process.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+  });
+});
+
 // Serve static files from the dist directory
 app.use(express.static(join(__dirname, 'dist')));
 

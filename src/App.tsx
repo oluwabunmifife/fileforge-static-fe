@@ -5,10 +5,10 @@ import UploadDropzone from "@/components/UploadDropzone";
 import { useSessionId } from "@/hooks/useSessionId";
 import { useUpload } from "@/hooks/useUpload";
 import { usePolling } from "@/hooks/usePolling";
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+import { useConfig } from "@/providers/ConfigProvider";
 
 export default function App() {
+  const { apiBaseUrl } = useConfig();
   const sessionId = useSessionId();
   const { uploads, error: uploadError, uploadFiles, clearError: clearUploadError } = useUpload();
   const { results, isPolling, error: pollingError, clearError: clearPollingError, clearResult } = usePolling(sessionId);
@@ -76,7 +76,7 @@ export default function App() {
           </div>
 
           <div className="mx-auto mt-8 max-w-4xl space-y-5">
-            {!API_BASE_URL ? (
+            {!apiBaseUrl ? (
               <div className="rounded-[28px] border border-amber-100 bg-amber-50/85 p-4 text-sm text-amber-800 shadow-sm">
                 Set <span className="font-mono">VITE_API_BASE_URL</span> to your backend URL.
                 Example: <span className="font-mono">https://abc123.execute-api.us-east-1.amazonaws.com</span>
